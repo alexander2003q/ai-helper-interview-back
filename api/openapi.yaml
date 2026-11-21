@@ -1,0 +1,410 @@
+openapi: 3.0.3
+info:
+  title: AI Helper Interview API
+  version: 1.0.0
+  description: |
+    API для создания тренировки технического интервью.
+
+    Сейчас backend генерирует только теоретические вопросы. Количество берётся
+    из `trainingConfig.theory.count`; настройки `code`, `experience` и `hints`
+    сохраняют формат запроса, но пока не влияют на генерацию.
+servers:
+  - url: /
+    description: Backend через Swagger reverse proxy
+tags:
+  - name: Questionnaires
+    description: Создание опросников
+
+paths:
+  /api/v1/questionnaires:
+    post:
+      tags:
+        - Questionnaires
+      summary: Создать опросник
+      description: |
+        Проверяет настройки тренировки и создаёт набор теоретических вопросов.
+        При `AI_PROVIDER=gigachat` вопросы генерирует GigaChat, при
+        `AI_PROVIDER=mock` возвращаются встроенные тестовые данные.
+      operationId: createQuestionnaire
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionnaireRequest"
+            examples:
+              reactMiddle:
+                summary: React-разработчик уровня Middle
+                value:
+                  topics:
+                    - React
+                  vacancy: React, TypeScript, REST API
+                  level: middle
+                  responseFormat: text
+                  trainingConfig:
+                    theory:
+                      enabled: true
+                      count: 8
+                    code:
+                      enabled: true
+                      count: 2
+                    experience:
+                      enabled: true
+                      count: 3
+                    hints:
+                      enabled: true
+                      perTask: 2
+                    attemptsPerTask: 3
+              frontendSenior:
+                summary: Несколько тем уровня Senior
+                value:
+                  topics:
+                    - React
+                    - Frontend
+                    - JavaScript
+                  vacancy: Архитектура SPA, производительность и тестирование
+                  level: senior
+                  responseFormat: text
+                  trainingConfig:
+                    theory:
+                      enabled: true
+                      count: 10
+                    code:
+                      enabled: false
+                      count: 0
+                    experience:
+                      enabled: false
+                      count: 0
+                    hints:
+                      enabled: false
+                      perTask: 0
+                    attemptsPerTask: 3
+      responses:
+        "201":
+          description: Опросник успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Questionnaire"
+              example:
+                id: questionnaire-1795219200000000000
+                topic: React
+                topics:
+                  - React
+                level: Middle
+                responseFormat: text
+                total: 1
+                questions:
+                  - id: 1
+                    type: Теоретический вопрос
+                    prompt: Для чего React использует key при рендере списка?
+                    answers:
+                      - id: a
+                        text: Для стилизации элементов
+                      - id: b
+                        text: Для сортировки данных
+                      - id: c
+                        text: Для сопоставления элементов между рендерами
+                      - id: d
+                        text: Для передачи значения в props
+                    correctAnswerId: c
+                    explanation: Стабильный key помогает React сопоставлять элементы списка между рендерами.
+        "400":
+          description: Тело запроса содержит некорректный JSON или неизвестные поля
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: invalid_json
+                  message: request body contains invalid JSON
+        "405":
+          description: Для ручки разрешён только POST
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: POST
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: method_not_allowed
+                  message: method not allowed
+        "415":
+          description: Заголовок Content-Type не равен application/json
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: unsupported_media_type
+                  message: Content-Type must be application/json
+        "422":
+          description: Данные не прошли бизнес-валидацию
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                noTopics:
+                  summary: Не выбрана тема
+                  value:
+                    error:
+                      code: validation_error
+                      message: must contain from 1 to 3 topics
+                      field: topics
+                theoryDisabled:
+                  summary: Теоретическая секция отключена
+                  value:
+                    error:
+                      code: validation_error
+                      message: must be enabled while only theory questions are supported
+                      field: trainingConfig.theory.enabled
+                tooManyQuestions:
+                  summary: Превышено количество вопросов
+                  value:
+                    error:
+                      code: validation_error
+                      message: must not be greater than 20
+                      field: trainingConfig.theory.count
+        "502":
+          description: AI-провайдер не смог сгенерировать корректный опросник
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: question_generation_failed
+                  message: could not generate questionnaire
+        "500":
+          description: Непредвиденная ошибка backend
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: internal_error
+                  message: internal server error
+
+components:
+  schemas:
+    CreateQuestionnaireRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - topics
+        - level
+        - responseFormat
+        - trainingConfig
+      properties:
+        topics:
+          type: array
+          description: От одной до трёх тем интервью.
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          example:
+            - React
+        vacancy:
+          type: string
+          description: Необязательное описание вакансии или ключевые требования.
+          example: React, TypeScript, REST API
+        level:
+          type: string
+          enum:
+            - junior
+            - middle
+            - senior
+          example: middle
+        responseFormat:
+          type: string
+          enum:
+            - text
+            - voice
+          example: text
+        trainingConfig:
+          $ref: "#/components/schemas/TrainingConfig"
+
+    TrainingConfig:
+      type: object
+      additionalProperties: false
+      required:
+        - theory
+        - code
+        - experience
+        - hints
+        - attemptsPerTask
+      properties:
+        theory:
+          allOf:
+            - $ref: "#/components/schemas/TrainingPart"
+            - type: object
+              description: Единственная секция, участвующая в генерации на текущем этапе.
+              properties:
+                enabled:
+                  type: boolean
+                  enum:
+                    - true
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+        code:
+          $ref: "#/components/schemas/TrainingPart"
+        experience:
+          $ref: "#/components/schemas/TrainingPart"
+        hints:
+          $ref: "#/components/schemas/HintsConfig"
+        attemptsPerTask:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 3
+
+    TrainingPart:
+      type: object
+      additionalProperties: false
+      required:
+        - enabled
+        - count
+      properties:
+        enabled:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          minimum: 0
+          example: 8
+
+    HintsConfig:
+      type: object
+      additionalProperties: false
+      required:
+        - enabled
+        - perTask
+      properties:
+        enabled:
+          type: boolean
+          example: true
+        perTask:
+          type: integer
+          minimum: 0
+          maximum: 3
+          example: 2
+
+    Questionnaire:
+      type: object
+      required:
+        - id
+        - topic
+        - topics
+        - level
+        - responseFormat
+        - total
+        - questions
+      properties:
+        id:
+          type: string
+        topic:
+          type: string
+        topics:
+          type: array
+          items:
+            type: string
+        level:
+          type: string
+          enum:
+            - Junior
+            - Middle
+            - Senior
+        responseFormat:
+          type: string
+          enum:
+            - text
+            - voice
+        total:
+          type: integer
+          minimum: 1
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+
+    Question:
+      type: object
+      required:
+        - id
+        - type
+        - prompt
+        - answers
+        - correctAnswerId
+        - explanation
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          example: Теоретический вопрос
+        prompt:
+          type: string
+        answers:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/Answer"
+        correctAnswerId:
+          type: string
+          enum:
+            - a
+            - b
+            - c
+            - d
+        explanation:
+          type: string
+
+    Answer:
+      type: object
+      required:
+        - id
+        - text
+      properties:
+        id:
+          type: string
+          enum:
+            - a
+            - b
+            - c
+            - d
+        text:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            field:
+              type: string
+              description: Поле запроса, в котором обнаружена ошибка валидации.
