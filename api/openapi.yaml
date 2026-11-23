@@ -23,8 +23,7 @@ paths:
       summary: Создать опросник
       description: |
         Проверяет настройки тренировки и создаёт набор теоретических вопросов.
-        При `AI_PROVIDER=gigachat` вопросы генерирует GigaChat, при
-        `AI_PROVIDER=mock` возвращаются встроенные тестовые данные.
+        Сейчас вопросы выбираются из встроенного набора данных.
       operationId: createQuestionnaire
       requestBody:
         required: true
@@ -173,7 +172,7 @@ paths:
                       message: must not be greater than 20
                       field: trainingConfig.theory.count
         "502":
-          description: AI-провайдер не смог сгенерировать корректный опросник
+          description: Генератор не смог сформировать корректный опросник
           content:
             application/json:
               schema:

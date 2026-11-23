@@ -3,19 +3,15 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"ai-helper-interview/backend/internal/config"
 	"ai-helper-interview/backend/internal/delivery/httpapi"
-	"ai-helper-interview/backend/internal/ports"
-	"ai-helper-interview/backend/internal/provider/gigachat"
 	"ai-helper-interview/backend/internal/provider/memory"
 	"ai-helper-interview/backend/internal/usecase"
 )
@@ -24,12 +20,7 @@ func main() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	generator, err := buildQuestionGenerator(cfg)
-	if err != nil {
-		logger.Error("invalid AI provider configuration", "error", err)
-		os.Exit(1)
-	}
-
+	generator := memory.NewTheoryQuestionGenerator()
 	createQuestionnaire := usecase.NewCreateQuestionnaire(generator)
 	handler := httpapi.NewQuestionnaireHandler(createQuestionnaire, logger)
 	router := httpapi.NewRouter(handler, cfg.AllowedOrigins, logger)
@@ -72,25 +63,4 @@ func main() {
 	}
 
 	logger.Info("server stopped", "time", time.Now().UTC())
-}
-
-func buildQuestionGenerator(cfg config.Config) (ports.TheoryQuestionGenerator, error) {
-	switch strings.ToLower(strings.TrimSpace(cfg.AIProvider)) {
-	case "mock":
-		return memory.NewTheoryQuestionGenerator(), nil
-	case "gigachat":
-		return gigachat.NewClient(gigachat.Config{
-			AuthorizationKey: cfg.GigaChatKey,
-			Model:            cfg.GigaChatModel,
-			Scope:            cfg.GigaChatScope,
-			OAuthURL:         cfg.GigaChatOAuthURL,
-			ChatURL:          cfg.GigaChatChatURL,
-			HTTPClient: &http.Client{
-				Timeout: cfg.GigaChatTimeout,
-			},
-			MaxRetries: 2,
-		})
-	default:
-		return nil, fmt.Errorf("unsupported AI_PROVIDER %q: use mock or gigachat", cfg.AIProvider)
-	}
 }

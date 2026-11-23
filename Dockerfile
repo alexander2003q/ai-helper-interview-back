@@ -1,13 +1,6 @@
 FROM golang:1.23-alpine AS build
 
-RUN apk add --no-cache ca-certificates curl && \
-    curl -fsSk \
-      https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt \
-      -o /usr/local/share/ca-certificates/russian_trusted_root_ca.crt && \
-    curl -fsSk \
-      https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt \
-      -o /usr/local/share/ca-certificates/russian_trusted_sub_ca.crt && \
-    update-ca-certificates
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /src
 
