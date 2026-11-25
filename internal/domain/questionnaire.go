@@ -64,7 +64,6 @@ type HintsConfig struct {
 type TrainingConfig struct {
 	Theory          TrainingPart
 	Code            TrainingPart
-	Experience      TrainingPart
 	Hints           HintsConfig
 	AttemptsPerTask int
 }
@@ -82,6 +81,14 @@ type TheoryGenerationInput struct {
 	Vacancy string
 	Level   Level
 	Count   int
+}
+
+type CodeGenerationInput struct {
+	Topics       []string
+	Vacancy      string
+	Level        Level
+	Count        int
+	HintsPerTask int
 }
 
 type ValidationError struct {
@@ -124,42 +131,38 @@ func (i CreateQuestionnaireInput) Validate() error {
 		}
 	}
 
-	if !i.Config.Theory.Enabled && !i.Config.Code.Enabled && !i.Config.Experience.Enabled {
+	if i.Config.Theory.Count < 0 {
 		return &ValidationError{
-			Field:   "trainingConfig",
-			Message: "at least one training section must be enabled",
+			Field:   "trainingConfig.theory.count",
+			Message: "must not be negative",
 		}
 	}
 
-	if !i.Config.Theory.Enabled {
+	if i.Config.Code.Count < 0 {
 		return &ValidationError{
-			Field:   "trainingConfig.theory.enabled",
-			Message: "must be enabled while only theory questions are supported",
+			Field:   "trainingConfig.code.count",
+			Message: "must not be negative",
 		}
 	}
 
-	parts := []struct {
-		name string
-		part TrainingPart
-	}{
-		{name: "trainingConfig.theory.count", part: i.Config.Theory},
-		{name: "trainingConfig.code.count", part: i.Config.Code},
-		{name: "trainingConfig.experience.count", part: i.Config.Experience},
-	}
-
-	for _, item := range parts {
-		if item.part.Enabled && item.part.Count <= 0 {
-			return &ValidationError{
-				Field:   item.name,
-				Message: "must be greater than zero when the section is enabled",
-			}
-		}
-	}
-
-	if i.Config.Theory.Count > 20 {
+	if i.Config.Theory.Enabled && i.Config.Theory.Count > 20 {
 		return &ValidationError{
 			Field:   "trainingConfig.theory.count",
 			Message: "must not be greater than 20",
+		}
+	}
+
+	if i.Config.Code.Enabled && i.Config.Code.Count > 10 {
+		return &ValidationError{
+			Field:   "trainingConfig.code.count",
+			Message: "must not be greater than 10",
+		}
+	}
+
+	if !TrainingRequested(i.Config.Theory) && !TrainingRequested(i.Config.Code) {
+		return &ValidationError{
+			Field:   "trainingConfig",
+			Message: "at least one question or code task must be requested",
 		}
 	}
 
@@ -180,9 +183,14 @@ func (i CreateQuestionnaireInput) Validate() error {
 	return nil
 }
 
+func TrainingRequested(part TrainingPart) bool {
+	return part.Enabled && part.Count > 0
+}
+
 type Answer struct {
-	ID   string
-	Text string
+	ID          string
+	Text        string
+	Explanation string
 }
 
 type Question struct {
@@ -194,11 +202,43 @@ type Question struct {
 	Explanation     string
 }
 
+type CodeExample struct {
+	Input  string
+	Output string
+}
+
+type CodeTest struct {
+	ID    string
+	Title string
+}
+
+type CodeSolution struct {
+	Code        string
+	Explanation string
+}
+
+type CodeTask struct {
+	ID          int
+	Type        string
+	Title       string
+	Description string
+	Language    string
+	FileName    string
+	StarterCode string
+	Examples    []CodeExample
+	Tests       []CodeTest
+	Hints       []string
+	Solution    CodeSolution
+}
+
 type Questionnaire struct {
-	ID             string
-	Topic          string
-	Topics         []string
-	Level          string
-	ResponseFormat ResponseFormat
-	Questions      []Question
+	ID              string
+	Topic           string
+	Topics          []string
+	Level           string
+	ResponseFormat  ResponseFormat
+	AttemptsPerTask int
+	Hints           HintsConfig
+	Questions       []Question
+	CodeTasks       []CodeTask
 }

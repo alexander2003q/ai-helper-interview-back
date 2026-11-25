@@ -20,8 +20,9 @@ func main() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	generator := memory.NewTheoryQuestionGenerator()
-	createQuestionnaire := usecase.NewCreateQuestionnaire(generator)
+	questions := memory.NewTheoryQuestionGenerator()
+	codeTasks := memory.NewCodeTaskGenerator()
+	createQuestionnaire := usecase.NewCreateQuestionnaire(questions, codeTasks)
 	handler := httpapi.NewQuestionnaireHandler(createQuestionnaire, logger)
 	router := httpapi.NewRouter(handler, cfg.AllowedOrigins, logger)
 

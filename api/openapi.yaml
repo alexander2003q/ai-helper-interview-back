@@ -5,9 +5,9 @@ info:
   description: |
     API для создания тренировки технического интервью.
 
-    Сейчас backend генерирует только теоретические вопросы. Количество берётся
-    из `trainingConfig.theory.count`; настройки `code`, `experience` и `hints`
-    сохраняют формат запроса, но пока не влияют на генерацию.
+    Сейчас backend собирает тренировку из встроенных моков. Количество
+    теоретических вопросов, микро-задач, подсказок и попыток берётся из запроса.
+    Нужна хотя бы одна включённая секция с ненулевым количеством.
 servers:
   - url: /
     description: Backend через Swagger reverse proxy
@@ -22,8 +22,8 @@ paths:
         - Questionnaires
       summary: Создать опросник
       description: |
-        Проверяет настройки тренировки и создаёт набор теоретических вопросов.
-        Сейчас вопросы выбираются из встроенного набора данных.
+        Проверяет настройки тренировки и собирает моковые вопросы и задачи
+        в количествах из запроса.
       operationId: createQuestionnaire
       requestBody:
         required: true
@@ -47,9 +47,6 @@ paths:
                     code:
                       enabled: true
                       count: 2
-                    experience:
-                      enabled: true
-                      count: 3
                     hints:
                       enabled: true
                       perTask: 2
@@ -71,9 +68,6 @@ paths:
                     code:
                       enabled: false
                       count: 0
-                    experience:
-                      enabled: false
-                      count: 0
                     hints:
                       enabled: false
                       perTask: 0
@@ -93,8 +87,13 @@ paths:
                 level: Middle
                 responseFormat: text
                 total: 1
-                questions:
-                  - id: 1
+                attemptsPerTask: 3
+                hints:
+                  enabled: true
+                  perTask: 2
+                tasks:
+                  - kind: question
+                    id: 1
                     type: Теоретический вопрос
                     prompt: Для чего React использует key при рендере списка?
                     answers:
@@ -157,13 +156,13 @@ paths:
                       code: validation_error
                       message: must contain from 1 to 3 topics
                       field: topics
-                theoryDisabled:
-                  summary: Теоретическая секция отключена
+                nothingRequested:
+                  summary: Не запрошены ни вопросы, ни задачи
                   value:
                     error:
                       code: validation_error
-                      message: must be enabled while only theory questions are supported
-                      field: trainingConfig.theory.enabled
+                      message: at least one question or code task must be requested
+                      field: trainingConfig
                 tooManyQuestions:
                   summary: Превышено количество вопросов
                   value:
@@ -240,7 +239,6 @@ components:
       required:
         - theory
         - code
-        - experience
         - hints
         - attemptsPerTask
       properties:
@@ -248,20 +246,20 @@ components:
           allOf:
             - $ref: "#/components/schemas/TrainingPart"
             - type: object
-              description: Единственная секция, участвующая в генерации на текущем этапе.
+              description: Теоретические вопросы. Учитываются, когда секция включена и count больше нуля.
               properties:
-                enabled:
-                  type: boolean
-                  enum:
-                    - true
                 count:
                   type: integer
-                  minimum: 1
                   maximum: 20
         code:
-          $ref: "#/components/schemas/TrainingPart"
-        experience:
-          $ref: "#/components/schemas/TrainingPart"
+          allOf:
+            - $ref: "#/components/schemas/TrainingPart"
+            - type: object
+              description: Микро-задачи с кодом. Учитываются, когда секция включена и count больше нуля.
+              properties:
+                count:
+                  type: integer
+                  maximum: 10
         hints:
           $ref: "#/components/schemas/HintsConfig"
         attemptsPerTask:
@@ -310,7 +308,9 @@ components:
         - level
         - responseFormat
         - total
-        - questions
+        - attemptsPerTask
+        - hints
+        - tasks
       properties:
         id:
           type: string
@@ -334,14 +334,23 @@ components:
         total:
           type: integer
           minimum: 1
-        questions:
+        attemptsPerTask:
+          type: integer
+          minimum: 1
+          maximum: 5
+        hints:
+          $ref: "#/components/schemas/HintsConfig"
+        tasks:
           type: array
           items:
-            $ref: "#/components/schemas/Question"
+            oneOf:
+              - $ref: "#/components/schemas/Question"
+              - $ref: "#/components/schemas/CodeTask"
 
     Question:
       type: object
       required:
+        - kind
         - id
         - type
         - prompt
@@ -349,6 +358,10 @@ components:
         - correctAnswerId
         - explanation
       properties:
+        kind:
+          type: string
+          enum:
+            - question
         id:
           type: integer
           minimum: 1
@@ -388,6 +401,84 @@ components:
             - d
         text:
           type: string
+
+    CodeTask:
+      type: object
+      required:
+        - kind
+        - id
+        - type
+        - title
+        - description
+        - language
+        - fileName
+        - starterCode
+        - examples
+        - tests
+        - hints
+        - solution
+      properties:
+        kind:
+          type: string
+          enum:
+            - code
+        id:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          example: Микро-задача с кодом
+        title:
+          type: string
+        description:
+          type: string
+        language:
+          type: string
+          enum:
+            - javascript
+            - typescript
+        fileName:
+          type: string
+        starterCode:
+          type: string
+        examples:
+          type: array
+          items:
+            type: object
+            required:
+              - input
+              - output
+            properties:
+              input:
+                type: string
+              output:
+                type: string
+        tests:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - title
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+        hints:
+          type: array
+          items:
+            type: string
+        solution:
+          type: object
+          required:
+            - code
+            - explanation
+          properties:
+            code:
+              type: string
+            explanation:
+              type: string
 
     ErrorResponse:
       type: object

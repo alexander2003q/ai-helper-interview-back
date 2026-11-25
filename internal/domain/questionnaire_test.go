@@ -47,6 +47,13 @@ func TestCreateQuestionnaireInputValidate(t *testing.T) {
 			},
 			wantField: "trainingConfig",
 		},
+		{
+			name: "code count is limited",
+			mutate: func(input *domain.CreateQuestionnaireInput) {
+				input.Config.Code = domain.TrainingPart{Enabled: true, Count: 11}
+			},
+			wantField: "trainingConfig.code.count",
+		},
 	}
 
 	for _, test := range tests {
@@ -72,5 +79,12 @@ func TestCreateQuestionnaireInputValidate(t *testing.T) {
 
 	if err := validInput.Validate(); err != nil {
 		t.Fatalf("valid input returned error: %v", err)
+	}
+
+	codeOnly := validInput
+	codeOnly.Config.Theory.Enabled = false
+	codeOnly.Config.Code = domain.TrainingPart{Enabled: true, Count: 1}
+	if err := codeOnly.Validate(); err != nil {
+		t.Fatalf("code-only input returned error: %v", err)
 	}
 }

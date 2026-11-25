@@ -46,7 +46,7 @@ docker compose -f backend/docker-compose.yml down
 
 ### `POST /api/v1/questionnaires`
 
-Принимает настройки с первой страницы и возвращает готовый опросник. Сейчас генерируется только секция `theory`, а её размер берётся из `trainingConfig.theory.count` (от 1 до 20). Поля `code`, `experience` и `hints` пока принимаются для совместимости, но не влияют на результат.
+Принимает настройки с первой страницы и возвращает моковую тренировку. Количество вопросов берётся из `trainingConfig.theory`, количество задач — из `trainingConfig.code`. Число подсказок у задачи равно `hints.perTask`, а `attemptsPerTask` возвращается вместе с опросником. Хотя бы одна из секций должна быть включена и иметь count больше нуля.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/questionnaires \
@@ -59,7 +59,6 @@ curl -X POST http://localhost:8080/api/v1/questionnaires \
     "trainingConfig": {
       "theory": {"enabled": true, "count": 8},
       "code": {"enabled": true, "count": 2},
-      "experience": {"enabled": true, "count": 3},
       "hints": {"enabled": true, "perTask": 2},
       "attemptsPerTask": 3
     }
