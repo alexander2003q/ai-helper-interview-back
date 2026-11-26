@@ -10,7 +10,16 @@ HTTP API для создания опросника технического и�
 docker compose -f backend/docker-compose.yml up --build
 ```
 
-API будет доступен на `http://localhost:8080`. Сервер использует встроенный генератор вопросов.
+API будет доступен на `http://localhost:8080`. Теоретические вопросы запрашиваются у Yandex AI Studio, а задачи с кодом собираются из встроенного набора.
+
+Перед запуском добавьте в `backend/.env` ключ и каталог Yandex Cloud. Файл не коммитится:
+
+```text
+YANDEX_API_KEY=...
+YANDEX_FOLDER_ID=...
+```
+
+Остальные настройки необязательны. По умолчанию используется модель `yandexgpt`, адрес Chat Completions `https://llm.api.cloud.yandex.net/v1` и общий бюджет генерации 75 секунд. Этот адрес совпадает с Chat Completions в официальном SDK AI Studio. При необходимости его можно заменить, например на `https://ai.api.cloud.yandex.net/v1`.
 
 ## Интерактивная документация API
 
@@ -46,7 +55,7 @@ docker compose -f backend/docker-compose.yml down
 
 ### `POST /api/v1/questionnaires`
 
-Принимает настройки с первой страницы и возвращает моковую тренировку. Количество вопросов берётся из `trainingConfig.theory`, количество задач — из `trainingConfig.code`. Число подсказок у задачи равно `hints.perTask`, а `attemptsPerTask` возвращается вместе с опросником. Хотя бы одна из секций должна быть включена и иметь count больше нуля.
+Принимает настройки с первой страницы и возвращает тренировку. Количество вопросов берётся из `trainingConfig.theory`, количество задач — из `trainingConfig.code`. Вопросы с вариантами a–d генерирует Yandex AI Studio. Задачи с кодом пока берутся из встроенного набора. Число подсказок у задачи равно `hints.perTask`, а `attemptsPerTask` возвращается вместе с опросником. Хотя бы одна из секций должна быть включена и иметь count больше нуля.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/questionnaires \
@@ -77,7 +86,8 @@ backend/
 │   ├── domain/                      # бизнес-модели и валидация
 │   ├── ports/                       # интерфейс генератора вопросов
 │   ├── usecase/                     # сценарии приложения
-│   ├── provider/memory/             # встроенный генератор для разработки
+│   ├── provider/memory/             # встроенные задачи с кодом и моковые вопросы для тестов
+│   ├── provider/yandex/             # генерация вопросов a–d через Yandex AI Studio
 │   └── delivery/httpapi/            # HTTP handler, DTO и middleware
 ├── Dockerfile
 └── docker-compose.yml

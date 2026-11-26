@@ -13,14 +13,19 @@ import (
 	"ai-helper-interview/backend/internal/config"
 	"ai-helper-interview/backend/internal/delivery/httpapi"
 	"ai-helper-interview/backend/internal/provider/memory"
+	"ai-helper-interview/backend/internal/provider/yandex"
 	"ai-helper-interview/backend/internal/usecase"
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if err != nil {
+		logger.Error("configuration is invalid", "error", err)
+		os.Exit(1)
+	}
 
-	questions := memory.NewTheoryQuestionGenerator()
+	questions := yandex.NewTheoryQuestionGenerator(cfg.Yandex)
 	codeTasks := memory.NewCodeTaskGenerator()
 	createQuestionnaire := usecase.NewCreateQuestionnaire(questions, codeTasks)
 	handler := httpapi.NewQuestionnaireHandler(createQuestionnaire, logger)
